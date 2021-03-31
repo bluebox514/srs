@@ -190,6 +190,7 @@ Other documents:
 
 ## V5 changes
 
+* v5.0, 2021-03-31, Threads: Support multiple threads with locks, [#2188](https://github.com/ossrs/srs/issues/2188). 5.0.2
 * v5.0, 2021-03-17, Live: Refine edge to follow client and HTTP/302. 5.0.1
 * v5.0, 2021-03-15, Init SRS/5. 5.0.0
 
@@ -1127,10 +1128,12 @@ The data for playing HTTP FLV was benchmarked by [SB][srs-bench]:
 The RTC benchmark data, by [srs-bench](https://github.com/ossrs/srs-bench/tree/feature/rtc#usage):
 
 
-|   Update      |    SRS    |    Clients    |     Type      |    CPU    |  Memory   | Threads | 
-| ------------- | --------- | ------------- | ------------- | --------- | --------  | ------- |
-|   2021-03-31  |   4.0.87  |   550         |   publishers  |   ~86%     |   1.3GB   | 1      |
-|   2021-03-31  |   4.0.87  |   800         |   players     |   ~94%     |   444MB   | 1      |
+|   Update      |    Server    |    Clients    |     Type      |    CPU    |  Memory   | Threads |  Commit        |
+| ------------- | --------- | ------------- | ------------- | --------- | --------    | -------- | ---------     |
+|   2021-03-31  |   SRS/4.0.87  |   550         |   publishers  |   ~86%     |   1.3GB   | 1      | |
+|   2021-03-31  |   SRS/4.0.87  |   800         |   players     |   ~94%     |   444MB   | 1      | |
+|   2021-03-31  |   SRS/5.0.2  |   1400         |   publishers  |   ~90%     |   3.1GB   | 6      | [#2188](https://github.com/ossrs/srs/issues/2188) |
+|   2021-03-31  |   SRS/5.0.2  |   1400         |   players     |   ~93%     |   1.0GB   | 6      | [#2188](https://github.com/ossrs/srs/issues/2188) |
 
 > Note: CentOS7, 500Kbps, 4CPU, 2.5 GHz Intel Xeon Platinum 8163/8269CY.
 

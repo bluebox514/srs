@@ -51,6 +51,7 @@ public:
 // The hybrid server manager.
 class SrsHybridServer : public ISrsHourGlass
 {
+    friend class SrsApiServer;
 private:
     std::vector<ISrsHybridServer*> servers;
     SrsHourGlass* timer_;
@@ -63,8 +64,6 @@ public:
     virtual srs_error_t initialize();
     virtual srs_error_t run();
     virtual void stop();
-public:
-    virtual SrsServerAdapter* srs();
 // interface ISrsHourGlass
 private:
     virtual srs_error_t setup_ticks();

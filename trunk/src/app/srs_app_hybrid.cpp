@@ -224,16 +224,6 @@ void SrsHybridServer::stop()
     }
 }
 
-SrsServerAdapter* SrsHybridServer::srs()
-{
-    for (vector<ISrsHybridServer*>::iterator it = servers.begin(); it != servers.end(); ++it) {
-        if (dynamic_cast<SrsServerAdapter*>(*it)) {
-            return dynamic_cast<SrsServerAdapter*>(*it);
-        }
-    }
-    return NULL;
-}
-
 srs_error_t SrsHybridServer::setup_ticks()
 {
     srs_error_t err = srs_success;

@@ -133,6 +133,7 @@ public:
 // The RTC server adapter.
 class RtcServerAdapter : public ISrsHybridServer
 {
+    friend class SrsApiServer;
 private:
     SrsRtcServer* rtc;
 public:

@@ -162,11 +162,6 @@ srs_error_t SrsHybridServer::initialize()
 {
     srs_error_t err = srs_success;
 
-    // Consume the async UDP/SRTP packets.
-    if ((err = _srs_thread_pool->consume()) != srs_success) {
-        return srs_error_wrap(err, "srtp");
-    }
-
     if ((err = setup_ticks()) != srs_success) {
         return srs_error_wrap(err, "tick");
     }
@@ -187,6 +182,7 @@ srs_error_t SrsHybridServer::run()
 {
     srs_error_t err = srs_success;
 
+    // Run all servers, which should never block.
     vector<ISrsHybridServer*>::iterator it;
     for (it = servers.begin(); it != servers.end(); ++it) {
         ISrsHybridServer* server = *it;
@@ -196,9 +192,25 @@ srs_error_t SrsHybridServer::run()
         }
     }
 
-    // TODO: FIXME: Should run the signal manager and directly quit.
-    // Wait for all server to quit.
-    srs_usleep(SRS_UTIME_NO_TIMEOUT);
+    // Consume the async UDP/SRTP packets.
+    while (true) {
+        int consumed = 0;
+
+        // Consume the received UDP packets.
+        if ((err = _srs_async_recv->consume(&consumed)) != srs_success) {
+            srs_error_reset(err); // Ignore any error.
+        }
+
+        // Consume the cooked SRTP packets.
+        if ((err = _srs_async_srtp->consume(&consumed)) != srs_success) {
+            srs_error_reset(err); // Ignore any error.
+        }
+
+        // Wait for a while if no packets.
+        if (!consumed) {
+            srs_usleep(20 * SRS_UTIME_MILLISECONDS);
+        }
+    }
 
     return err;
 }

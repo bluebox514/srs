@@ -738,10 +738,10 @@ string SrsConfDirective::arg3()
     return "";
 }
 
-SrsConfDirective* SrsConfDirective::at(int index)
+SrsConfDirective* SrsConfDirective::at(int stream_index)
 {
-    srs_assert(index < (int)directives.size());
-    return directives.at(index);
+    srs_assert(stream_index < (int)directives.size());
+    return directives.at(stream_index);
 }
 
 SrsConfDirective* SrsConfDirective::get(string _name)
@@ -3284,6 +3284,10 @@ srs_error_t SrsConfig::check_config()
     if ((err = check_number_connections()) != srs_success) {
         return srs_error_wrap(err, "check connections");
     }
+
+    if ((err = check_hybrids()) != srs_success) {
+        return srs_error_wrap(err, "check hybrids");
+    }
     
     return err;
 }
@@ -3787,6 +3791,62 @@ srs_error_t SrsConfig::check_number_connections()
 }
 // LCOV_EXCL_STOP
 
+srs_error_t SrsConfig::check_hybrids()
+{
+    srs_error_t err = srs_success;
+
+    // There MUST be at least one stream/hybrid.
+    int hybrids = get_threads_hybrids();
+    if (hybrids < 1) {
+        return srs_error_new(ERROR_SYSTEM_CONFIG_INVALID, "hybrids MUST >=1, actual %d", hybrids);
+    }
+
+    // The number of hybrids MUST be equal to the streams.
+    vector<SrsConfDirective*> streams;
+    for (int i = 0; i < (int)root->directives.size(); i++) {
+        SrsConfDirective* conf = root->at(i);
+        if (conf->name == "stream") {
+            streams.push_back(conf);
+        }
+    }
+
+    if (hybrids != (int)streams.size()) {
+        return srs_error_new(ERROR_SYSTEM_CONFIG_INVALID, "hybrids=%d, streams=%d, not equal", hybrids, (int)streams.size());
+    }
+
+    // For each stream, the UDP listen MUST not be the same.
+    vector<int> udp_ports;
+    for (int i = 0; i < (int)streams.size(); i++) {
+        int port = get_rtc_server_listen(i);
+        if (std::find(udp_ports.begin(), udp_ports.end(), port) != udp_ports.end()) {
+            return srs_error_new(ERROR_SYSTEM_CONFIG_INVALID, "RTC port=%d duplicated", port);
+        }
+        udp_ports.push_back(port);
+    }
+
+    // TODO: FIXME: For edge, the RTMP/HTTP port is OK to be the same, but it's too complex.
+    // For each stream, the TCP listen MUST not be the same.
+    vector<string> tcp_ports;
+    for (int i = 0; i < (int)streams.size(); i++) {
+        string port = get_http_stream_listen(i);
+        if (std::find(tcp_ports.begin(), tcp_ports.end(), port) != tcp_ports.end()) {
+            return srs_error_new(ERROR_SYSTEM_CONFIG_INVALID, "HTTP port=%s duplicated", port.c_str());
+        }
+        tcp_ports.push_back(port);
+
+        vector<string> ports = get_listens(i);
+        for (int j = 0; j < (int)ports.size(); j++) {
+            port = ports.at(j);
+            if (std::find(tcp_ports.begin(), tcp_ports.end(), port) != tcp_ports.end()) {
+                return srs_error_new(ERROR_SYSTEM_CONFIG_INVALID, "RTMP port=%s duplicated", port.c_str());
+            }
+            tcp_ports.push_back(port);
+        }
+    }
+
+    return err;
+}
+
 srs_error_t SrsConfig::parse_buffer(SrsConfigBuffer* buffer)
 {
     srs_error_t err = srs_success;
@@ -3828,16 +3888,31 @@ SrsConfDirective* SrsConfig::get_root()
     return root;
 }
 
-SrsConfDirective* SrsConfig::get_first_stream()
+SrsConfDirective* SrsConfig::get_stream_at(int stream_index)
 {
-    return root->get("stream");
+    int matched = 0;
+    for (int i = 0; i < (int)root->directives.size(); i++) {
+        SrsConfDirective* conf = root->at(i);
+
+        if (conf->name != "stream") {
+            continue;
+        }
+
+        if (matched++ != stream_index) {
+            continue;
+        }
+
+        return conf;
+    }
+
+    return NULL;
 }
 
-int SrsConfig::get_max_connections()
+int SrsConfig::get_max_connections(int stream_index)
 {
     static int DEFAULT = 1000;
     
-    SrsConfDirective* conf = get_first_stream();
+    SrsConfDirective* conf = get_stream_at(stream_index);
     if (!conf) {
         return DEFAULT;
     }
@@ -3850,11 +3925,11 @@ int SrsConfig::get_max_connections()
     return ::atoi(conf->arg0().c_str());
 }
 
-vector<string> SrsConfig::get_listens()
+vector<string> SrsConfig::get_listens(int stream_index)
 {
     std::vector<string> ports;
     
-    SrsConfDirective* conf = get_first_stream();
+    SrsConfDirective* conf = get_stream_at(stream_index);
     if (!conf) {
         return ports;
     }
@@ -4119,6 +4194,23 @@ bool SrsConfig::get_threads_async_tunnel()
     }
 
     return SRS_CONF_PERFER_FALSE(conf->arg0());
+}
+
+int SrsConfig::get_threads_hybrids()
+{
+    static int DEFAULT = 1;
+
+    SrsConfDirective* conf = root->get("threads");
+    if (!conf) {
+        return DEFAULT;
+    }
+
+    conf = conf->get("hybrids");
+    if (!conf) {
+        return DEFAULT;
+    }
+
+    return ::atoi(conf->arg0().c_str());
 }
 
 bool SrsConfig::get_threads_cpu_affinity(std::string label, int* start, int* end)
@@ -4708,9 +4800,9 @@ srs_utime_t SrsConfig::get_stream_caster_gb28181_sip_query_catalog_interval(SrsC
     return (srs_utime_t)(::atoi(conf->arg0().c_str()) * SRS_UTIME_SECONDS);
 }
 
-SrsConfDirective* SrsConfig::get_first_rtc_server()
+SrsConfDirective* SrsConfig::get_rtc_server_at(int stream_index)
 {
-    SrsConfDirective* conf = get_first_stream();
+    SrsConfDirective* conf = get_stream_at(stream_index);
     if (!conf) {
         return NULL;
     }
@@ -4718,9 +4810,9 @@ SrsConfDirective* SrsConfig::get_first_rtc_server()
     return conf->get("rtc_server");
 }
 
-bool SrsConfig::get_rtc_server_enabled()
+bool SrsConfig::get_rtc_server_enabled(int stream_index)
 {
-    SrsConfDirective* conf = get_first_rtc_server();
+    SrsConfDirective* conf = get_rtc_server_at(stream_index);
     return get_rtc_server_enabled(conf);
 }
 
@@ -4740,11 +4832,11 @@ bool SrsConfig::get_rtc_server_enabled(SrsConfDirective* conf)
     return SRS_CONF_PERFER_FALSE(conf->arg0());
 }
 
-int SrsConfig::get_rtc_server_listen()
+int SrsConfig::get_rtc_server_listen(int stream_index)
 {
     static int DEFAULT = 8000;
 
-    SrsConfDirective* conf = get_first_rtc_server();
+    SrsConfDirective* conf = get_rtc_server_at(stream_index);
     if (!conf) {
         return DEFAULT;
     }
@@ -4757,11 +4849,11 @@ int SrsConfig::get_rtc_server_listen()
     return ::atoi(conf->arg0().c_str());
 }
 
-std::string SrsConfig::get_rtc_server_candidates()
+std::string SrsConfig::get_rtc_server_candidates(int stream_index)
 {
     static string DEFAULT = "*";
 
-    SrsConfDirective* conf = get_first_rtc_server();
+    SrsConfDirective* conf = get_rtc_server_at(stream_index);
     if (!conf) {
         return DEFAULT;
     }
@@ -4784,11 +4876,11 @@ std::string SrsConfig::get_rtc_server_candidates()
     return conf->arg0();
 }
 
-std::string SrsConfig::get_rtc_server_ip_family()
+std::string SrsConfig::get_rtc_server_ip_family(int stream_index)
 {
     static string DEFAULT = "ipv4";
 
-    SrsConfDirective* conf = get_first_rtc_server();
+    SrsConfDirective* conf = get_rtc_server_at(stream_index);
     if (!conf) {
         return DEFAULT;
     }
@@ -4801,11 +4893,11 @@ std::string SrsConfig::get_rtc_server_ip_family()
     return conf->arg0();
 }
 
-bool SrsConfig::get_rtc_server_ecdsa()
+bool SrsConfig::get_rtc_server_ecdsa(int stream_index)
 {
     static bool DEFAULT = true;
 
-    SrsConfDirective* conf = get_first_rtc_server();
+    SrsConfDirective* conf = get_rtc_server_at(stream_index);
     if (!conf) {
         return DEFAULT;
     }
@@ -4818,11 +4910,11 @@ bool SrsConfig::get_rtc_server_ecdsa()
     return SRS_CONF_PERFER_TRUE(conf->arg0());
 }
 
-bool SrsConfig::get_rtc_server_encrypt()
+bool SrsConfig::get_rtc_server_encrypt(int stream_index)
 {
     static bool DEFAULT = true;
 
-    SrsConfDirective* conf = get_first_rtc_server();
+    SrsConfDirective* conf = get_rtc_server_at(stream_index);
     if (!conf) {
         return DEFAULT;
     }
@@ -4835,9 +4927,9 @@ bool SrsConfig::get_rtc_server_encrypt()
     return SRS_CONF_PERFER_TRUE(conf->arg0());
 }
 
-int SrsConfig::get_rtc_server_reuseport()
+int SrsConfig::get_rtc_server_reuseport(int stream_index)
 {
-    int v = get_rtc_server_reuseport2();
+    int v = get_rtc_server_reuseport2(stream_index);
 
 #if !defined(SO_REUSEPORT)
     if (v > 1) {
@@ -4849,11 +4941,11 @@ int SrsConfig::get_rtc_server_reuseport()
     return v;
 }
 
-int SrsConfig::get_rtc_server_reuseport2()
+int SrsConfig::get_rtc_server_reuseport2(int stream_index)
 {
     static int DEFAULT = 1;
 
-    SrsConfDirective* conf = get_first_rtc_server();
+    SrsConfDirective* conf = get_rtc_server_at(stream_index);
     if (!conf) {
         return DEFAULT;
     }
@@ -4866,11 +4958,11 @@ int SrsConfig::get_rtc_server_reuseport2()
     return ::atoi(conf->arg0().c_str());
 }
 
-bool SrsConfig::get_rtc_server_merge_nalus()
+bool SrsConfig::get_rtc_server_merge_nalus(int stream_index)
 {
     static int DEFAULT = false;
 
-    SrsConfDirective* conf = get_first_rtc_server();
+    SrsConfDirective* conf = get_rtc_server_at(stream_index);
     if (!conf) {
         return DEFAULT;
     }
@@ -4883,11 +4975,11 @@ bool SrsConfig::get_rtc_server_merge_nalus()
     return SRS_CONF_PERFER_TRUE(conf->arg0());
 }
 
-bool SrsConfig::get_rtc_server_perf_stat()
+bool SrsConfig::get_rtc_server_perf_stat(int stream_index)
 {
     static bool DEFAULT = false;
 
-    SrsConfDirective* conf = get_first_rtc_server();
+    SrsConfDirective* conf = get_rtc_server_at(stream_index);
     if (!conf) {
         return DEFAULT;
     }
@@ -4900,9 +4992,9 @@ bool SrsConfig::get_rtc_server_perf_stat()
     return SRS_CONF_PERFER_FALSE(conf->arg0());
 }
 
-SrsConfDirective* SrsConfig::get_rtc_server_rtp_cache()
+SrsConfDirective* SrsConfig::get_rtc_server_rtp_cache(int stream_index)
 {
-    SrsConfDirective* conf = get_first_rtc_server();
+    SrsConfDirective* conf = get_rtc_server_at(stream_index);
     if (!conf) {
         return NULL;
     }
@@ -4915,11 +5007,11 @@ SrsConfDirective* SrsConfig::get_rtc_server_rtp_cache()
     return conf;
 }
 
-bool SrsConfig::get_rtc_server_rtp_cache_enabled()
+bool SrsConfig::get_rtc_server_rtp_cache_enabled(int stream_index)
 {
     static bool DEFAULT = true;
 
-    SrsConfDirective* conf = get_rtc_server_rtp_cache();
+    SrsConfDirective* conf = get_rtc_server_rtp_cache(stream_index);
     if (!conf) {
         return DEFAULT;
     }
@@ -4932,11 +5024,11 @@ bool SrsConfig::get_rtc_server_rtp_cache_enabled()
     return SRS_CONF_PERFER_TRUE(conf->arg0());
 }
 
-uint64_t SrsConfig::get_rtc_server_rtp_cache_pkt_size()
+uint64_t SrsConfig::get_rtc_server_rtp_cache_pkt_size(int stream_index)
 {
     int DEFAULT = 64 * 1024 * 1024;
 
-    SrsConfDirective* conf = get_rtc_server_rtp_cache();
+    SrsConfDirective* conf = get_rtc_server_rtp_cache(stream_index);
     if (!conf) {
         return DEFAULT;
     }
@@ -4949,11 +5041,11 @@ uint64_t SrsConfig::get_rtc_server_rtp_cache_pkt_size()
     return 1024 * (uint64_t)(1024 * ::atof(conf->arg0().c_str()));
 }
 
-uint64_t SrsConfig::get_rtc_server_rtp_cache_payload_size()
+uint64_t SrsConfig::get_rtc_server_rtp_cache_payload_size(int stream_index)
 {
     int DEFAULT = 16 * 1024 * 1024;
 
-    SrsConfDirective* conf = get_rtc_server_rtp_cache();
+    SrsConfDirective* conf = get_rtc_server_rtp_cache(stream_index);
     if (!conf) {
         return DEFAULT;
     }
@@ -4966,9 +5058,9 @@ uint64_t SrsConfig::get_rtc_server_rtp_cache_payload_size()
     return 1024 * (uint64_t)(1024 * ::atof(conf->arg0().c_str()));
 }
 
-SrsConfDirective* SrsConfig::get_rtc_server_rtp_msg_cache()
+SrsConfDirective* SrsConfig::get_rtc_server_rtp_msg_cache(int stream_index)
 {
-    SrsConfDirective* conf = get_first_rtc_server();
+    SrsConfDirective* conf = get_rtc_server_at(stream_index);
     if (!conf) {
         return NULL;
     }
@@ -4981,11 +5073,11 @@ SrsConfDirective* SrsConfig::get_rtc_server_rtp_msg_cache()
     return conf;
 }
 
-bool SrsConfig::get_rtc_server_rtp_msg_cache_enabled()
+bool SrsConfig::get_rtc_server_rtp_msg_cache_enabled(int stream_index)
 {
     static bool DEFAULT = true;
 
-    SrsConfDirective* conf = get_rtc_server_rtp_msg_cache();
+    SrsConfDirective* conf = get_rtc_server_rtp_msg_cache(stream_index);
     if (!conf) {
         return DEFAULT;
     }
@@ -4998,11 +5090,11 @@ bool SrsConfig::get_rtc_server_rtp_msg_cache_enabled()
     return SRS_CONF_PERFER_TRUE(conf->arg0());
 }
 
-uint64_t SrsConfig::get_rtc_server_rtp_msg_cache_msg_size()
+uint64_t SrsConfig::get_rtc_server_rtp_msg_cache_msg_size(int stream_index)
 {
     int DEFAULT = 16 * 1024 * 1024;
 
-    SrsConfDirective* conf = get_rtc_server_rtp_msg_cache();
+    SrsConfDirective* conf = get_rtc_server_rtp_msg_cache(stream_index);
     if (!conf) {
         return DEFAULT;
     }
@@ -5015,11 +5107,11 @@ uint64_t SrsConfig::get_rtc_server_rtp_msg_cache_msg_size()
     return 1024 * (uint64_t)(1024 * ::atof(conf->arg0().c_str()));
 }
 
-uint64_t SrsConfig::get_rtc_server_rtp_msg_cache_buffer_size()
+uint64_t SrsConfig::get_rtc_server_rtp_msg_cache_buffer_size(int stream_index)
 {
     int DEFAULT = 512 * 1024 * 1024;
 
-    SrsConfDirective* conf = get_rtc_server_rtp_msg_cache();
+    SrsConfDirective* conf = get_rtc_server_rtp_msg_cache(stream_index);
     if (!conf) {
         return DEFAULT;
     }
@@ -5032,11 +5124,11 @@ uint64_t SrsConfig::get_rtc_server_rtp_msg_cache_buffer_size()
     return 1024 * (uint64_t)(1024 * ::atof(conf->arg0().c_str()));
 }
 
-bool SrsConfig::get_rtc_server_black_hole()
+bool SrsConfig::get_rtc_server_black_hole(int stream_index)
 {
     static bool DEFAULT = false;
 
-    SrsConfDirective* conf = get_first_rtc_server();
+    SrsConfDirective* conf = get_rtc_server_at(stream_index);
     if (!conf) {
         return DEFAULT;
     }
@@ -5054,11 +5146,11 @@ bool SrsConfig::get_rtc_server_black_hole()
     return SRS_CONF_PERFER_FALSE(conf->arg0());
 }
 
-std::string SrsConfig::get_rtc_server_black_hole_addr()
+std::string SrsConfig::get_rtc_server_black_hole_addr(int stream_index)
 {
     static string DEFAULT = "";
 
-    SrsConfDirective* conf = get_first_rtc_server();
+    SrsConfDirective* conf = get_rtc_server_at(stream_index);
     if (!conf) {
         return DEFAULT;
     }
@@ -8188,9 +8280,9 @@ string SrsConfig::get_default_app_name() {
     return conf->arg0();
 }
 
-SrsConfDirective* SrsConfig::get_first_http_stream()
+SrsConfDirective* SrsConfig::get_http_stream_at(int stream_index)
 {
-    SrsConfDirective* conf = get_first_stream();
+    SrsConfDirective* conf = get_stream_at(stream_index);
     if (!conf) {
         return NULL;
     }
@@ -8198,9 +8290,9 @@ SrsConfDirective* SrsConfig::get_first_http_stream()
     return conf->get("http_server");
 }
 
-bool SrsConfig::get_http_stream_enabled()
+bool SrsConfig::get_http_stream_enabled(int stream_index)
 {
-    SrsConfDirective* conf = get_first_http_stream();
+    SrsConfDirective* conf = get_http_stream_at(stream_index);
     return get_http_stream_enabled(conf);
 }
 
@@ -8220,11 +8312,11 @@ bool SrsConfig::get_http_stream_enabled(SrsConfDirective* conf)
     return SRS_CONF_PERFER_FALSE(conf->arg0());
 }
 
-string SrsConfig::get_http_stream_listen()
+string SrsConfig::get_http_stream_listen(int stream_index)
 {
     static string DEFAULT = "8080";
     
-    SrsConfDirective* conf = get_first_http_stream();
+    SrsConfDirective* conf = get_http_stream_at(stream_index);
     if (!conf) {
         return DEFAULT;
     }
@@ -8237,11 +8329,11 @@ string SrsConfig::get_http_stream_listen()
     return conf->arg0();
 }
 
-string SrsConfig::get_http_stream_dir()
+string SrsConfig::get_http_stream_dir(int stream_index)
 {
     static string DEFAULT = "./objs/nginx/html";
     
-    SrsConfDirective* conf = get_first_http_stream();
+    SrsConfDirective* conf = get_http_stream_at(stream_index);
     if (!conf) {
         return DEFAULT;
     }
@@ -8254,11 +8346,11 @@ string SrsConfig::get_http_stream_dir()
     return conf->arg0();
 }
 
-bool SrsConfig::get_http_stream_crossdomain()
+bool SrsConfig::get_http_stream_crossdomain(int stream_index)
 {
     static bool DEFAULT = true;
     
-    SrsConfDirective* conf = get_first_http_stream();
+    SrsConfDirective* conf = get_http_stream_at(stream_index);
     if (!conf) {
         return DEFAULT;
     }
@@ -8271,9 +8363,9 @@ bool SrsConfig::get_http_stream_crossdomain()
     return SRS_CONF_PERFER_TRUE(conf->arg0());
 }
 
-SrsConfDirective* SrsConfig::get_https_stream()
+SrsConfDirective* SrsConfig::get_https_stream(int stream_index)
 {
-    SrsConfDirective* conf = get_first_http_stream();
+    SrsConfDirective* conf = get_http_stream_at(stream_index);
     if (!conf) {
         return NULL;
     }
@@ -8281,11 +8373,11 @@ SrsConfDirective* SrsConfig::get_https_stream()
     return conf->get("https");
 }
 
-bool SrsConfig::get_https_stream_enabled()
+bool SrsConfig::get_https_stream_enabled(int stream_index)
 {
     static bool DEFAULT = false;
 
-    SrsConfDirective* conf = get_https_stream();
+    SrsConfDirective* conf = get_https_stream(stream_index);
     if (!conf) {
         return DEFAULT;
     }
@@ -8298,11 +8390,11 @@ bool SrsConfig::get_https_stream_enabled()
     return SRS_CONF_PERFER_FALSE(conf->arg0());
 }
 
-string SrsConfig::get_https_stream_listen()
+string SrsConfig::get_https_stream_listen(int stream_index)
 {
     static string DEFAULT = "8088";
 
-    SrsConfDirective* conf = get_https_stream();
+    SrsConfDirective* conf = get_https_stream(stream_index);
     if (!conf) {
         return DEFAULT;
     }
@@ -8315,11 +8407,11 @@ string SrsConfig::get_https_stream_listen()
     return conf->arg0();
 }
 
-string SrsConfig::get_https_stream_ssl_key()
+string SrsConfig::get_https_stream_ssl_key(int stream_index)
 {
     static string DEFAULT = "./conf/server.key";
 
-    SrsConfDirective* conf = get_https_stream();
+    SrsConfDirective* conf = get_https_stream(stream_index);
     if (!conf) {
         return DEFAULT;
     }
@@ -8332,11 +8424,11 @@ string SrsConfig::get_https_stream_ssl_key()
     return conf->arg0();
 }
 
-string SrsConfig::get_https_stream_ssl_cert()
+string SrsConfig::get_https_stream_ssl_cert(int stream_index)
 {
     static string DEFAULT = "./conf/server.crt";
 
-    SrsConfDirective* conf = get_https_stream();
+    SrsConfDirective* conf = get_https_stream(stream_index);
     if (!conf) {
         return DEFAULT;
     }

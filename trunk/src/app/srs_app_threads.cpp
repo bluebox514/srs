@@ -1427,8 +1427,8 @@ void SrsAsyncSendManager::add_packet(SrsAsyncUdpPacket* pkt)
 
 srs_error_t SrsAsyncSendManager::start(void* arg)
 {
-    SrsAsyncSendManager* srtp = (SrsAsyncSendManager*)arg;
-    return srtp->do_start();
+    SrsAsyncSendManager* send = (SrsAsyncSendManager*)arg;
+    return send->do_start();
 }
 
 srs_error_t SrsAsyncSendManager::do_start()

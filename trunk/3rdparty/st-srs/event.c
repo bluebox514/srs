@@ -67,7 +67,7 @@ typedef struct _kq_fd_data {
     int revents;
 } _kq_fd_data_t;
 
-static struct _st_kqdata {
+__thread static struct _st_kqdata {
     _kq_fd_data_t *fd_data;
     struct kevent *evtlist;
     struct kevent *addlist;
@@ -99,7 +99,7 @@ typedef struct _epoll_fd_data {
     int revents;
 } _epoll_fd_data_t;
 
-static struct _st_epolldata {
+__thread static struct _st_epolldata {
     _epoll_fd_data_t *fd_data;
     struct epoll_event *evtlist;
     int fd_data_size;
@@ -127,7 +127,7 @@ static struct _st_epolldata {
 
 #endif  /* MD_HAVE_EPOLL */
 
-_st_eventsys_t *_st_eventsys = NULL;
+__thread _st_eventsys_t *_st_eventsys = NULL;
 
 
 #ifdef MD_HAVE_KQUEUE

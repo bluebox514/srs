@@ -79,7 +79,7 @@ unsigned long long _st_stat_sendmsg_eagain = 0;
 #define _LOCAL_MAXIOV  16
 
 /* File descriptor object free list */
-__thread static _st_netfd_t *_st_netfd_freelist = NULL;
+static __thread _st_netfd_t *_st_netfd_freelist = NULL;
 /* Maximum number of file descriptors that the process can open */
 static int _st_osfd_limit = -1;
 

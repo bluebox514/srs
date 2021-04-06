@@ -717,8 +717,8 @@ int _st_iterate_threads_flag = 0;
 
 void _st_iterate_threads(void)
 {
-    __thread static _st_thread_t *thread = NULL;
-   __thread static jmp_buf orig_jb, save_jb;
+    static __thread _st_thread_t *thread = NULL;
+    static __thread jmp_buf orig_jb, save_jb;
     _st_clist_t *q;
     
     if (!_st_iterate_threads_flag) {

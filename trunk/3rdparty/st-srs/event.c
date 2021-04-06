@@ -67,7 +67,7 @@ typedef struct _kq_fd_data {
     int revents;
 } _kq_fd_data_t;
 
-__thread static struct _st_kqdata {
+static __thread struct _st_kqdata {
     _kq_fd_data_t *fd_data;
     struct kevent *evtlist;
     struct kevent *addlist;
@@ -99,7 +99,7 @@ typedef struct _epoll_fd_data {
     int revents;
 } _epoll_fd_data_t;
 
-__thread static struct _st_epolldata {
+static __thread struct _st_epolldata {
     _epoll_fd_data_t *fd_data;
     struct epoll_event *evtlist;
     int fd_data_size;

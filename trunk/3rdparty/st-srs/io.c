@@ -54,20 +54,20 @@
 
 // Global stat.
 #if defined(DEBUG) && defined(DEBUG_STATS)
-unsigned long long _st_stat_recvfrom = 0;
-unsigned long long _st_stat_recvfrom_eagain = 0;
-unsigned long long _st_stat_sendto = 0;
-unsigned long long _st_stat_sendto_eagain = 0;
-unsigned long long _st_stat_read = 0;
-unsigned long long _st_stat_read_eagain = 0;
-unsigned long long _st_stat_readv = 0;
-unsigned long long _st_stat_readv_eagain = 0;
-unsigned long long _st_stat_writev = 0;
-unsigned long long _st_stat_writev_eagain = 0;
-unsigned long long _st_stat_recvmsg = 0;
-unsigned long long _st_stat_recvmsg_eagain = 0;
-unsigned long long _st_stat_sendmsg = 0;
-unsigned long long _st_stat_sendmsg_eagain = 0;
+__thread unsigned long long _st_stat_recvfrom = 0;
+__thread unsigned long long _st_stat_recvfrom_eagain = 0;
+__thread unsigned long long _st_stat_sendto = 0;
+__thread unsigned long long _st_stat_sendto_eagain = 0;
+__thread unsigned long long _st_stat_read = 0;
+__thread unsigned long long _st_stat_read_eagain = 0;
+__thread unsigned long long _st_stat_readv = 0;
+__thread unsigned long long _st_stat_readv_eagain = 0;
+__thread unsigned long long _st_stat_writev = 0;
+__thread unsigned long long _st_stat_writev_eagain = 0;
+__thread unsigned long long _st_stat_recvmsg = 0;
+__thread unsigned long long _st_stat_recvmsg_eagain = 0;
+__thread unsigned long long _st_stat_sendmsg = 0;
+__thread unsigned long long _st_stat_sendmsg_eagain = 0;
 #endif
 
 #if EAGAIN != EWOULDBLOCK

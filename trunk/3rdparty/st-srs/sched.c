@@ -54,20 +54,20 @@
 
 // Global stat.
 #if defined(DEBUG) && defined(DEBUG_STATS)
-unsigned long long _st_stat_sched_15ms = 0;
-unsigned long long _st_stat_sched_20ms = 0;
-unsigned long long _st_stat_sched_25ms = 0;
-unsigned long long _st_stat_sched_30ms = 0;
-unsigned long long _st_stat_sched_35ms = 0;
-unsigned long long _st_stat_sched_40ms = 0;
-unsigned long long _st_stat_sched_80ms = 0;
-unsigned long long _st_stat_sched_160ms = 0;
-unsigned long long _st_stat_sched_s = 0;
+__thread unsigned long long _st_stat_sched_15ms = 0;
+__thread unsigned long long _st_stat_sched_20ms = 0;
+__thread unsigned long long _st_stat_sched_25ms = 0;
+__thread unsigned long long _st_stat_sched_30ms = 0;
+__thread unsigned long long _st_stat_sched_35ms = 0;
+__thread unsigned long long _st_stat_sched_40ms = 0;
+__thread unsigned long long _st_stat_sched_80ms = 0;
+__thread unsigned long long _st_stat_sched_160ms = 0;
+__thread unsigned long long _st_stat_sched_s = 0;
 
-unsigned long long _st_stat_thread_run = 0;
-unsigned long long _st_stat_thread_idle = 0;
-unsigned long long _st_stat_thread_yield = 0;
-unsigned long long _st_stat_thread_yield2 = 0;
+__thread unsigned long long _st_stat_thread_run = 0;
+__thread unsigned long long _st_stat_thread_idle = 0;
+__thread unsigned long long _st_stat_thread_yield = 0;
+__thread unsigned long long _st_stat_thread_yield2 = 0;
 #endif
 
 

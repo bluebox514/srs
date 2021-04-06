@@ -49,10 +49,10 @@
 
 // Global stat.
 #if defined(DEBUG) && defined(DEBUG_STATS)
-unsigned long long _st_stat_epoll = 0;
-unsigned long long _st_stat_epoll_zero = 0;
-unsigned long long _st_stat_epoll_shake = 0;
-unsigned long long _st_stat_epoll_spin = 0;
+__thread unsigned long long _st_stat_epoll = 0;
+__thread unsigned long long _st_stat_epoll_zero = 0;
+__thread unsigned long long _st_stat_epoll_shake = 0;
+__thread unsigned long long _st_stat_epoll_spin = 0;
 #endif
 
 #if !defined(MD_HAVE_KQUEUE) && !defined(MD_HAVE_EPOLL)

@@ -288,6 +288,7 @@ srs_error_t SrsRtcServer::initialize()
         return srs_error_wrap(err, "start timer");
     }
 
+    // TODO: FIXME: It should be thread-local or thread-safe.
     if ((err = _srs_blackhole->initialize()) != srs_success) {
         return srs_error_wrap(err, "black hole");
     }
@@ -740,10 +741,6 @@ srs_error_t RtcServerAdapter::initialize()
 {
     srs_error_t err = srs_success;
 
-    if ((err = _srs_rtc_dtls_certificate->initialize()) != srs_success) {
-        return srs_error_wrap(err, "rtc dtls certificate initialize");
-    }
-
     if ((err = rtc->initialize()) != srs_success) {
         return srs_error_wrap(err, "rtc server initialize");
     }
@@ -759,6 +756,7 @@ srs_error_t RtcServerAdapter::run()
         return srs_error_wrap(err, "listen udp");
     }
 
+    // TODO: FIXME: It should be thread-local or thread-safe.
     if ((err = _srs_rtc_manager->start()) != srs_success) {
         return srs_error_wrap(err, "start manager");
     }

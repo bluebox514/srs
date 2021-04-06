@@ -424,6 +424,9 @@ SrsThreadEntry::SrsThreadEntry()
 
     stat = new SrsProcSelfStat();
     slot_ = NULL;
+
+    received_packets_ = new SrsThreadQueue<SrsUdpMuxSocket>();
+    cooked_packets_ = new SrsThreadQueue<SrsAsyncSRTPPacket>();
 }
 
 SrsThreadEntry::~SrsThreadEntry()
@@ -433,6 +436,9 @@ SrsThreadEntry::~SrsThreadEntry()
 
     // TODO: FIXME: Before free slot, we MUST close pipes in threads that open them.
     srs_freep(slot_);
+
+    srs_freep(received_packets_);
+    srs_freep(cooked_packets_);
 
     // TODO: FIXME: Should dispose trd.
 }
@@ -719,7 +725,8 @@ srs_error_t SrsThreadPool::run()
 
         string queue_desc;
         if (true) {
-            snprintf(buf, sizeof(buf), ", queue=%d,%d,%d,%d", _srs_async_recv->size(), _srs_async_srtp->size(), _srs_async_srtp->cooked_size(), _srs_async_send->size());
+            // TODO: FIXME: Collect the size of RECV and SRTP queue.
+            snprintf(buf, sizeof(buf), ", queue=%d,%d", _srs_async_srtp->size(), _srs_async_send->size());
             queue_desc = buf;
         }
 
@@ -1248,6 +1255,8 @@ SrsAsyncSRTPTask::SrsAsyncSRTPTask(SrsAsyncSRTP* codec)
     disposing_ = false;
     sendonly_skt_ = NULL;
     lock_ = new SrsThreadMutex();
+
+    entry_ = _srs_thread_pool->self();
 }
 
 SrsAsyncSRTPTask::~SrsAsyncSRTPTask()
@@ -1392,7 +1401,6 @@ SrsAsyncSRTPManager::SrsAsyncSRTPManager()
 {
     lock_ = new SrsThreadMutex();
     srtp_packets_ = new SrsThreadQueue<SrsAsyncSRTPPacket>();
-    cooked_packets_ = new SrsThreadQueue<SrsAsyncSRTPPacket>();
     tunnel_enabled_ = false;
 }
 
@@ -1401,7 +1409,6 @@ SrsAsyncSRTPManager::~SrsAsyncSRTPManager()
 {
     srs_freep(lock_);
     srs_freep(srtp_packets_);
-    srs_freep(cooked_packets_);
 
     vector<SrsAsyncSRTPTask*>::iterator it;
     for (it = tasks_.begin(); it != tasks_.end(); ++it) {
@@ -1447,11 +1454,6 @@ int SrsAsyncSRTPManager::size()
     return srtp_packets_->size();
 }
 
-int SrsAsyncSRTPManager::cooked_size()
-{
-    return cooked_packets_->size();
-}
-
 srs_error_t SrsAsyncSRTPManager::start(void* arg)
 {
     SrsAsyncSRTPManager* srtp = (SrsAsyncSRTPManager*)arg;
@@ -1481,7 +1483,7 @@ srs_error_t SrsAsyncSRTPManager::do_start()
                 continue;
             }
 
-            cooked_packets_->push_back(pkt);
+            pkt->task_->entry_->cooked_packets_->push_back(pkt);
 
             ++_srs_tunnel_send_raw->sugar;
         }
@@ -1501,7 +1503,7 @@ srs_error_t SrsAsyncSRTPManager::do_start()
     return err;
 }
 
-srs_error_t SrsAsyncSRTPManager::consume(int* nn_consumed)
+srs_error_t SrsAsyncSRTPManager::consume(SrsThreadEntry* entry, int* nn_consumed)
 {
     srs_error_t err = srs_success;
 
@@ -1509,7 +1511,7 @@ srs_error_t SrsAsyncSRTPManager::consume(int* nn_consumed)
     uint32_t nn_msgs_for_yield = 0;
 
     vector<SrsAsyncSRTPPacket*> flying_cooked_packets;
-    cooked_packets_->swap(flying_cooked_packets);
+    entry->cooked_packets_->swap(flying_cooked_packets);
 
     if (flying_cooked_packets.empty()) {
         return err;
@@ -1543,6 +1545,8 @@ SrsThreadUdpListener::SrsThreadUdpListener(srs_netfd_t fd, ISrsUdpMuxHandler* ha
 {
     skt_ = new SrsUdpMuxSocket(fd);
     skt_->set_handler(handler);
+
+    entry_ = _srs_thread_pool->self();
 }
 
 SrsThreadUdpListener::~SrsThreadUdpListener()
@@ -1579,7 +1583,6 @@ SrsAsyncSRTPTask* SrsRecvTunnels::find(uint64_t fast_id)
 SrsAsyncRecvManager::SrsAsyncRecvManager()
 {
     lock_ = new SrsThreadMutex();
-    received_packets_ = new SrsThreadQueue<SrsUdpMuxSocket>();
     max_recv_queue_ = 0;
     tunnels_ = new SrsRecvTunnels();
     tunnel_enabled_ = false;
@@ -1589,7 +1592,6 @@ SrsAsyncRecvManager::SrsAsyncRecvManager()
 SrsAsyncRecvManager::~SrsAsyncRecvManager()
 {
     srs_freep(lock_);
-    srs_freep(received_packets_);
     srs_freep(tunnels_);
 
     vector<SrsThreadUdpListener*>::iterator it;
@@ -1603,11 +1605,6 @@ void SrsAsyncRecvManager::add_listener(SrsThreadUdpListener* listener)
 {
     SrsThreadLocker(lock_);
     listeners_.push_back(listener);
-}
-
-int SrsAsyncRecvManager::size()
-{
-    return received_packets_->size();
 }
 
 srs_error_t SrsAsyncRecvManager::start(void* arg)
@@ -1641,8 +1638,11 @@ srs_error_t SrsAsyncRecvManager::do_start()
                     break;
                 }
 
+                // Get the queue of source thread.
+                SrsThreadQueue<SrsUdpMuxSocket>* queue = listener->entry_->received_packets_;
+
                 // Drop packet if queue is critical full.
-                int nb_packets = (int)received_packets_->size();
+                int nb_packets = (int)queue->size();
                 if (nb_packets >= max_recv_queue_) {
                     ++_srs_pps_aloss->sugar;
                     continue;
@@ -1657,7 +1657,7 @@ srs_error_t SrsAsyncRecvManager::do_start()
                 }
 
                 // If got packet, copy to the queue.
-                received_packets_->push_back(listener->skt_->copy());
+                queue->push_back(listener->skt_->copy());
             }
         }
 
@@ -1676,7 +1676,7 @@ srs_error_t SrsAsyncRecvManager::do_start()
     return err;
 }
 
-srs_error_t SrsAsyncRecvManager::consume(int* nn_consumed)
+srs_error_t SrsAsyncRecvManager::consume(SrsThreadEntry* entry, int* nn_consumed)
 {
     srs_error_t err = srs_success;
 
@@ -1684,7 +1684,7 @@ srs_error_t SrsAsyncRecvManager::consume(int* nn_consumed)
     uint32_t nn_msgs_for_yield = 0;
 
     vector<SrsUdpMuxSocket*> flying_received_packets;
-    received_packets_->swap(flying_received_packets);
+    entry->received_packets_->swap(flying_received_packets);
 
     if (flying_received_packets.empty()) {
         return err;

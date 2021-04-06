@@ -302,6 +302,11 @@ public:
     // The channels to communicate with other threads.
     std::map<pthread_t, SrsThreadPipeChannel*> channels_;
 public:
+    // The received UDP packets.
+    SrsThreadQueue<SrsUdpMuxSocket>* received_packets_;
+    // The packets cooked by async SRTP manager.
+    SrsThreadQueue<SrsAsyncSRTPPacket>* cooked_packets_;
+public:
     SrsThreadEntry();
     virtual ~SrsThreadEntry();
 };
@@ -460,6 +465,9 @@ private:
     SrsUdpMuxSocket* sendonly_skt_;
     SrsThreadMutex* lock_;
 public:
+    // The thread entry, to which the listener belongs.
+    SrsThreadEntry* entry_;
+public:
     SrsAsyncSRTPTask(SrsAsyncSRTP* codec);
     virtual ~SrsAsyncSRTPTask();
 public:
@@ -498,9 +506,6 @@ private:
 private:
     SrsThreadQueue<SrsAsyncSRTPPacket>* srtp_packets_;
 private:
-    // The packets cooked by async SRTP manager.
-    SrsThreadQueue<SrsAsyncSRTPPacket>* cooked_packets_;
-private:
     // Whether enabled tunnel.
     bool tunnel_enabled_;
 public:
@@ -514,13 +519,12 @@ public:
     void on_srtp_codec_destroy(SrsAsyncSRTPTask* task);
     void add_packet(SrsAsyncSRTPPacket* pkt);
     int size();
-    int cooked_size();
     static srs_error_t start(void* arg);
 private:
     srs_error_t do_start();
 public:
     // Consume cooked SRTP packets. Must call in worker/service thread.
-    virtual srs_error_t consume(int* nn_consumed);
+    virtual srs_error_t consume(SrsThreadEntry* entry, int* nn_consumed);
 };
 
 // It MUST be thread-safe, because it runs in multiple threads by design.
@@ -532,6 +536,9 @@ class SrsThreadUdpListener
 {
 public:
     SrsUdpMuxSocket* skt_;
+public:
+    // The thread entry, to which the listener belongs.
+    SrsThreadEntry* entry_;
 public:
     SrsThreadUdpListener(srs_netfd_t fd, ISrsUdpMuxHandler* handler);
     virtual ~SrsThreadUdpListener();
@@ -559,8 +566,6 @@ public:
 class SrsAsyncRecvManager
 {
 private:
-    // The received UDP packets.
-    SrsThreadQueue<SrsUdpMuxSocket>* received_packets_;
     // The tunnel for recv to directly consume packets to SRTP decrypt.
     SrsRecvTunnels* tunnels_;
 private:
@@ -586,8 +591,6 @@ public:
     void set_max_recv_queue(int v) { max_recv_queue_ =v; }
     // Add listener to recv from.
     void add_listener(SrsThreadUdpListener* listener);
-    // Get the size of packets queue.
-    int size();
 public:
     // Start the thread.
     static srs_error_t start(void* arg);
@@ -595,7 +598,7 @@ private:
     srs_error_t do_start();
 public:
     // Consume received UDP packets. Must call in worker/service thread.
-    virtual srs_error_t consume(int* nn_consumed);
+    virtual srs_error_t consume(SrsThreadEntry* entry, int* nn_consumed);
 private:
     // Try to consume by tunnel.
     bool consume_by_tunnel(SrsUdpMuxSocket* skt);

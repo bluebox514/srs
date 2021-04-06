@@ -139,7 +139,7 @@ void SrsRtcBlackhole::sendto(void* data, int len)
     srs_sendto(blackhole_stfd, data, len, (sockaddr*)blackhole_addr, sizeof(sockaddr_in), SRS_UTIME_NO_TIMEOUT);
 }
 
-SrsRtcBlackhole* _srs_blackhole = new SrsRtcBlackhole();
+__thread SrsRtcBlackhole* _srs_blackhole = NULL;
 
 // @global dtls certficate for rtc module.
 SrsDtlsCertificate* _srs_rtc_dtls_certificate = new SrsDtlsCertificate();
@@ -288,7 +288,6 @@ srs_error_t SrsRtcServer::initialize()
         return srs_error_wrap(err, "start timer");
     }
 
-    // TODO: FIXME: It should be thread-local or thread-safe.
     if ((err = _srs_blackhole->initialize()) != srs_success) {
         return srs_error_wrap(err, "black hole");
     }
@@ -756,7 +755,6 @@ srs_error_t RtcServerAdapter::run()
         return srs_error_wrap(err, "listen udp");
     }
 
-    // TODO: FIXME: It should be thread-local or thread-safe.
     if ((err = _srs_rtc_manager->start()) != srs_success) {
         return srs_error_wrap(err, "start manager");
     }
@@ -768,6 +766,5 @@ void RtcServerAdapter::stop()
 {
 }
 
-// TODO: FIXME: It should be thread-local or thread-safe.
-SrsResourceManager* _srs_rtc_manager = new SrsResourceManager("RTC", true);
+__thread SrsResourceManager* _srs_rtc_manager = NULL;
 

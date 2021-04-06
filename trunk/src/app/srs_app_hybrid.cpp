@@ -212,11 +212,13 @@ srs_error_t SrsHybridServer::run()
         int consumed = 0;
 
         // Consume the received UDP packets.
+        // Note that this might run in multiple threads, but it's ok.
         if ((err = _srs_async_recv->consume(&consumed)) != srs_success) {
             srs_error_reset(err); // Ignore any error.
         }
 
         // Consume the cooked SRTP packets.
+        // Note that this might run in multiple threads, but it's ok.
         if ((err = _srs_async_srtp->consume(&consumed)) != srs_success) {
             srs_error_reset(err); // Ignore any error.
         }

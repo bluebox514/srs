@@ -48,6 +48,82 @@ class SrsThreadMutex;
 class ISrsThreadResponder;
 struct SrsThreadMessage;
 
+// The thread mutex wrapper, without error.
+class SrsThreadMutex
+{
+private:
+    pthread_mutex_t lock_;
+    pthread_mutexattr_t attr_;
+public:
+    SrsThreadMutex();
+    virtual ~SrsThreadMutex();
+public:
+    void lock();
+    void unlock();
+};
+
+// The thread mutex locker.
+// TODO: FIXME: Rename _SRS to _srs
+#define SrsThreadLocker(instance) \
+    impl__SrsThreadLocker _SRS_free_##instance(instance)
+
+class impl__SrsThreadLocker
+{
+private:
+    SrsThreadMutex* lock;
+public:
+    impl__SrsThreadLocker(SrsThreadMutex* l) {
+        lock = l;
+        lock->lock();
+    }
+    virtual ~impl__SrsThreadLocker() {
+        lock->unlock();
+    }
+};
+
+// Thread-safe queue.
+template<typename T>
+class SrsThreadQueue
+{
+private:
+    std::vector<T*> dirty_;
+    SrsThreadMutex* lock_;
+public:
+    // SrsThreadQueue::SrsThreadQueue
+    SrsThreadQueue() {
+        lock_ = new SrsThreadMutex();
+    }
+    // SrsThreadQueue::~SrsThreadQueue
+    virtual ~SrsThreadQueue() {
+        srs_freep(lock_);
+        for (int i = 0; i < (int)dirty_.size(); i++) {
+            T* msg = dirty_.at(i);
+            srs_freep(msg);
+        }
+    }
+public:
+    // SrsThreadQueue::push_back
+    void push_back(T* msg) {
+        SrsThreadLocker(lock_);
+        dirty_.push_back(msg);
+    }
+    // SrsThreadQueue::push_back
+    void push_back(std::vector<T*>& flying) {
+        SrsThreadLocker(lock_);
+        dirty_.insert(dirty_.end(), flying.begin(), flying.end());
+    }
+    // SrsThreadQueue::swap
+    void swap(std::vector<T*>& flying) {
+        SrsThreadLocker(lock_);
+        dirty_.swap(flying);
+    }
+    // SrsThreadQueue::size
+    size_t size() {
+        SrsThreadLocker(lock_);
+        return dirty_.size();
+    }
+};
+
 // The pipe wraps the os pipes(fds).
 class SrsPipe
 {
@@ -192,39 +268,6 @@ struct SrsThreadMessage
     // TODO: FIXME: Add a trace ID?
 };
 
-// The thread mutex wrapper, without error.
-class SrsThreadMutex
-{
-private:
-    pthread_mutex_t lock_;
-    pthread_mutexattr_t attr_;
-public:
-    SrsThreadMutex();
-    virtual ~SrsThreadMutex();
-public:
-    void lock();
-    void unlock();
-};
-
-// The thread mutex locker.
-// TODO: FIXME: Rename _SRS to _srs
-#define SrsThreadLocker(instance) \
-    impl__SrsThreadLocker _SRS_free_##instance(instance)
-
-class impl__SrsThreadLocker
-{
-private:
-    SrsThreadMutex* lock;
-public:
-    impl__SrsThreadLocker(SrsThreadMutex* l) {
-        lock = l;
-        lock->lock();
-    }
-    virtual ~impl__SrsThreadLocker() {
-        lock->unlock();
-    }
-};
-
 #ifdef SRS_OSX
     typedef uint64_t cpu_set_t;
     #define CPU_ZERO(p) *p = 0
@@ -318,80 +361,6 @@ private:
 
 // It MUST be thread-safe, global and shared object.
 extern SrsThreadPool* _srs_thread_pool;
-
-// We use coroutine queue to collect messages from different coroutines,
-// then swap to the SrsThreadQueue and process by another thread.
-template<typename T>
-class SrsCoroutineQueue
-{
-private:
-    std::vector<T*> dirty_;
-public:
-    SrsCoroutineQueue() {
-    }
-    virtual ~SrsCoroutineQueue() {
-        for (int i = 0; i < (int)dirty_.size(); i++) {
-            T* msg = dirty_.at(i);
-            srs_freep(msg);
-        }
-    }
-public:
-    // SrsCoroutineQueue::push_back
-    void push_back(T* msg) {
-        dirty_.push_back(msg);
-    }
-    // SrsCoroutineQueue::swap
-    void swap(std::vector<T*>& flying) {
-        dirty_.swap(flying);
-    }
-    // SrsCoroutineQueue::size
-    size_t size() {
-        return dirty_.size();
-    }
-};
-
-// Thread-safe queue.
-template<typename T>
-class SrsThreadQueue
-{
-private:
-    std::vector<T*> dirty_;
-    SrsThreadMutex* lock_;
-public:
-    // SrsThreadQueue::SrsThreadQueue
-    SrsThreadQueue() {
-        lock_ = new SrsThreadMutex();
-    }
-    // SrsThreadQueue::~SrsThreadQueue
-    virtual ~SrsThreadQueue() {
-        srs_freep(lock_);
-        for (int i = 0; i < (int)dirty_.size(); i++) {
-            T* msg = dirty_.at(i);
-            srs_freep(msg);
-        }
-    }
-public:
-    // SrsThreadQueue::push_back
-    void push_back(T* msg) {
-        SrsThreadLocker(lock_);
-        dirty_.push_back(msg);
-    }
-    // SrsThreadQueue::push_back
-    void push_back(std::vector<T*>& flying) {
-        SrsThreadLocker(lock_);
-        dirty_.insert(dirty_.end(), flying.begin(), flying.end());
-    }
-    // SrsThreadQueue::swap
-    void swap(std::vector<T*>& flying) {
-        SrsThreadLocker(lock_);
-        dirty_.swap(flying);
-    }
-    // SrsThreadQueue::size
-    size_t size() {
-        SrsThreadLocker(lock_);
-        return dirty_.size();
-    }
-};
 
 // Async file writer, it's thread safe.
 class SrsAsyncFileWriter : public ISrsWriter

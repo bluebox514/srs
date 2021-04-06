@@ -521,9 +521,14 @@ srs_error_t run_in_thread_pool()
         return srs_error_wrap(err, "start api server thread");
     }
 
-    // Start the hybrid service worker thread, for RTMP and RTC server, etc.
-    if ((err = _srs_thread_pool->execute("hybrid", run_hybrid_server, NULL)) != srs_success) {
-        return srs_error_wrap(err, "start hybrid server thread");
+    // Start a number of hybrid service threads.
+    int hybrids = _srs_config->get_threads_hybrids();
+    for (int stream_index = 0; stream_index < hybrids; stream_index++) {
+        // TODO: FIXME: Change the thread name for debugging?
+        // Start the hybrid service worker thread, for RTMP and RTC server, etc.
+        if ((err = _srs_thread_pool->execute("hybrid", run_hybrid_server, (void*)(uint64_t)stream_index)) != srs_success) {
+            return srs_error_wrap(err, "start hybrid server %d thread", stream_index);
+        }
     }
 
     return _srs_thread_pool->run();
@@ -533,6 +538,10 @@ srs_error_t run_in_thread_pool()
 srs_error_t run_hybrid_server(void* arg)
 {
     srs_error_t err = srs_success;
+
+    // The config index for hybrid/stream server.
+    int stream_index = (int)(uint64_t)arg;
+    _srs_hybrid->set_stream_index(stream_index);
 
     // Create servers and register them.
     _srs_hybrid->register_server(new SrsServerAdapter());

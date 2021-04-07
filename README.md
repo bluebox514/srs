@@ -190,6 +190,7 @@ Other documents:
 
 ## V5 changes
 
+* v5.0, 2021-04-07, Threads: Support multiple hybrid threads, [#2188](https://github.com/ossrs/srs/issues/2188). 5.0.3
 * v5.0, 2021-03-31, Threads: Support multiple threads with locks, [#2188](https://github.com/ossrs/srs/issues/2188). 5.0.2
 * v5.0, 2021-03-17, Live: Refine edge to follow client and HTTP/302. 5.0.1
 * v5.0, 2021-03-15, Init SRS/5. 5.0.0

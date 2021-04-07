@@ -1114,7 +1114,6 @@ The data for publishing RTMP was benchmarked by [SB][srs-bench]:
 
 The data for playing HTTP FLV was benchmarked by [SB][srs-bench]:
 
-
 |   Update      |    SRS    |    Clients    |     Type      |    CPU    |  Memory   | Commit        |
 | ------------- | --------- | ------------- | ------------- | --------- | --------  | ------------  |
 |   2014-05-25  |   2.0.171 |   6.0k(6000)  |   players     |   84%     |   297MB   |   [code][p20] |
@@ -1128,17 +1127,18 @@ The data for playing HTTP FLV was benchmarked by [SB][srs-bench]:
 
 The RTC benchmark data, by [srs-bench](https://github.com/ossrs/srs-bench/tree/feature/rtc#usage):
 
-
-|   Update      |    Server    |    Clients    |     Type      |    CPU    |  Memory   | Threads |  Commit        |
-| ------------- | --------- | ------------- | ------------- | --------- | --------    | -------- | ---------     |
-|   2021-03-31  |   SRS/4.0.87  |   550         |   publishers  |   ~86%     |   1.3GB   | 1      | |
-|   2021-03-31  |   SRS/4.0.87  |   800         |   players     |   ~94%     |   444MB   | 1      | |
-|   2021-03-31  |   SRS/5.0.2  |   1400         |   publishers  |   ~90%     |   3.1GB   | 6      | [#2188](https://github.com/ossrs/srs/issues/2188) |
-|   2021-03-31  |   SRS/5.0.2  |   1400         |   players     |   ~93%     |   1.0GB   | 6      | [#2188](https://github.com/ossrs/srs/issues/2188) |
-|   2021-03-31  | Janus/0.10.10 |   700         |   publishers  |   ~320%     |   142MB   | 720   | |
-|   2021-03-31  | Janus/0.10.10 |   700         |   players     |   ~325%     |   283MB   | 720   | |
-
-> Note: CentOS7, 500Kbps, 4CPU, 2.5 GHz Intel Xeon Platinum 8163/8269CY.
+|   Update      |    Server     | Clients |    Type  |   CPU    | Memory   | Threads | Commit |
+| ------------- | ------------  | ----- | ---------- | -------- | -------- | ----- | --------- |
+|   2021-04-07  |   SRS/5.0.3   | 10000 | publishers | ~90% x 32 |  28GB  | 33   | [#2188](https://github.com/ossrs/srs/issues/2188) |
+|   2021-04-07  |   SRS/5.0.3   | 3400  | publishers | ~95% x 8 |  6.3GB  | 12   | [#2188](https://github.com/ossrs/srs/issues/2188) |
+|   2021-04-07  | Janus/0.10.10 | 1100  | publishers | ~50% x 8 |  169MB  | 1100  | Crashed |
+|   2021-04-07  |   SRS/5.0.3   | 1800  | publishers | ~95% x 4 |  4.1GB  | 8    | [#2188](https://github.com/ossrs/srs/issues/2188) |
+|   2021-03-31  |   SRS/5.0.2   | 1400  | publishers | ~90% x 4 |  3.1GB  | 6    | [#2188](https://github.com/ossrs/srs/issues/2188) |
+|   2021-03-31  |   SRS/5.0.2   | 1400  | players    | ~93% x 4 |  1.0GB  | 6    | [#2188](https://github.com/ossrs/srs/issues/2188) |
+|   2021-03-31  | Janus/0.10.10 | 700   | publishers | ~80% x 4 |  142MB  | 720  | |
+|   2021-03-31  | Janus/0.10.10 | 700   | players    | ~82% x 4 |  283MB  | 720  | |
+|   2021-03-31  |   SRS/4.0.87  | 550   | publishers | ~86% x 1 |  1.3GB  | 1    | |
+|   2021-03-31  |   SRS/4.0.87  | 800   | players    | ~94% x 1 |  444MB  | 1    | |
 
 > Note: The benchmark tool for Janus is [srs-bench](https://github.com/ossrs/srs-bench/tree/feature/rtc#janus), and startup script by [janus-docker](https://github.com/winlinvip/janus-docker#usage).
 
@@ -1146,7 +1146,6 @@ The RTC benchmark data, by [srs-bench](https://github.com/ossrs/srs-bench/tree/f
 **Latency benchmark**
 
 The latency between encoder and player with realtime config([CN][v3_CN_LowLatency], [EN][v3_EN_LowLatency]):
-|   
 
 |   Update      |    SRS    | Protocol |    VP6    |  H.264    |  VP6+MP3  | H.264+MP3 |
 | ------------- | --------- | --------- | --------- | --------- | --------- | --------  |

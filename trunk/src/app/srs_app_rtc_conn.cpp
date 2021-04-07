@@ -101,7 +101,7 @@ SrsSecurityTransport::SrsSecurityTransport(SrsRtcConnection* s)
     dtls_ = new SrsDtls((ISrsDtlsCallback*)this);
 
     int async_srtp = _srs_config->get_threads_async_srtp();
-    if (async_srtp > 0) {
+    if (async_srtp <= 0) {
         srtp_ = new SrsSRTP();
     } else {
         srtp_ = new SrsAsyncSRTP(this);

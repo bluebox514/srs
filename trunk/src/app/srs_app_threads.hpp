@@ -550,8 +550,11 @@ public:
     // The thread entry, to which the listener belongs.
     SrsThreadEntry* entry_;
 public:
+    SrsThreadUdpListener();
     SrsThreadUdpListener(srs_netfd_t fd, ISrsUdpMuxHandler* handler);
     virtual ~SrsThreadUdpListener();
+public:
+    SrsThreadUdpListener* copy();
 };
 
 // The tunnel for recv to directly consume packets to SRTP decrypt.
@@ -606,6 +609,7 @@ public:
     static srs_error_t start(void* arg);
 private:
     srs_error_t do_start();
+    void deep_copy_listeners(std::vector<SrsThreadUdpListener*>& cp);
 public:
     // Consume received UDP packets. Must call in worker/service thread.
     virtual srs_error_t consume(SrsThreadEntry* entry, int* nn_consumed);

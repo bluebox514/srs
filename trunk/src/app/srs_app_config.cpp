@@ -4136,9 +4136,9 @@ srs_utime_t SrsConfig::get_threads_interval()
     return v * SRS_UTIME_SECONDS;
 }
 
-bool SrsConfig::get_threads_async_srtp()
+int SrsConfig::get_threads_async_srtp()
 {
-    static bool DEFAULT = false;
+    static int DEFAULT = 1;
 
     SrsConfDirective* conf = root->get("threads");
     if (!conf) {
@@ -4150,12 +4150,16 @@ bool SrsConfig::get_threads_async_srtp()
         return DEFAULT;
     }
 
-    return SRS_CONF_PERFER_FALSE(conf->arg0());
+    int v = ::atoi(conf->arg0().c_str());
+    if (v < 0 || v > 64) {
+        return DEFAULT;
+    }
+    return v;
 }
 
-bool SrsConfig::get_threads_async_recv()
+int SrsConfig::get_threads_async_recv()
 {
-    static bool DEFAULT = false;
+    static int DEFAULT = 1;
 
     SrsConfDirective* conf = root->get("threads");
     if (!conf) {
@@ -4167,12 +4171,16 @@ bool SrsConfig::get_threads_async_recv()
         return DEFAULT;
     }
 
-    return SRS_CONF_PERFER_FALSE(conf->arg0());
+    int v = ::atoi(conf->arg0().c_str());
+    if (v < 0 || v > 64) {
+        return DEFAULT;
+    }
+    return v;
 }
 
-bool SrsConfig::get_threads_async_send()
+int SrsConfig::get_threads_async_send()
 {
-    static bool DEFAULT = false;
+    static int DEFAULT = 1;
 
     SrsConfDirective* conf = root->get("threads");
     if (!conf) {
@@ -4184,7 +4192,11 @@ bool SrsConfig::get_threads_async_send()
         return DEFAULT;
     }
 
-    return SRS_CONF_PERFER_FALSE(conf->arg0());
+    int v = ::atoi(conf->arg0().c_str());
+    if (v < 0 || v > 64) {
+        return DEFAULT;
+    }
+    return v;
 }
 
 bool SrsConfig::get_threads_async_tunnel()
@@ -4218,7 +4230,11 @@ int SrsConfig::get_threads_hybrids()
         return DEFAULT;
     }
 
-    return ::atoi(conf->arg0().c_str());
+    int v = ::atoi(conf->arg0().c_str());
+    if (v <= 0 || v > 64) {
+        return DEFAULT;
+    }
+    return v;
 }
 
 bool SrsConfig::get_threads_cpu_affinity(std::string label, int* start, int* end)

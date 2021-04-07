@@ -781,13 +781,13 @@ srs_error_t SrsThreadPool::initialize()
     critical_pulse_ = _srs_config->get_critical_pulse();
     dying_threshold_ = _srs_config->get_dying_threshold();
     dying_pulse_ = _srs_config->get_dying_pulse();
-    bool async_srtp = _srs_config->get_threads_async_srtp();
+    int async_srtp = _srs_config->get_threads_async_srtp();
 
     int recv_queue = _srs_config->get_threads_max_recv_queue();
     _srs_async_recv->set_max_recv_queue(recv_queue);
 
-    bool async_send = _srs_config->get_threads_async_send();
-    _srs_async_send->set_enabled(async_send);
+    int async_send = _srs_config->get_threads_async_send();
+    _srs_async_send->set_enabled(async_send > 0);
 
     bool async_tunnel = _srs_config->get_threads_async_tunnel();
     _srs_async_recv->set_tunnel_enabled(async_tunnel);
@@ -1801,6 +1801,12 @@ srs_error_t SrsAsyncSRTPManager::consume(SrsThreadEntry* entry, int* nn_consumed
 
 SrsAsyncSRTPManager* _srs_async_srtp = new SrsAsyncSRTPManager();
 
+SrsThreadUdpListener::SrsThreadUdpListener()
+{
+    skt_ = NULL;
+    entry_ = NULL;
+}
+
 SrsThreadUdpListener::SrsThreadUdpListener(srs_netfd_t fd, ISrsUdpMuxHandler* handler)
 {
     skt_ = new SrsUdpMuxSocket(fd);
@@ -1811,6 +1817,15 @@ SrsThreadUdpListener::SrsThreadUdpListener(srs_netfd_t fd, ISrsUdpMuxHandler* ha
 
 SrsThreadUdpListener::~SrsThreadUdpListener()
 {
+    srs_freep(skt_);
+}
+
+SrsThreadUdpListener* SrsThreadUdpListener::copy()
+{
+    SrsThreadUdpListener* cp = new SrsThreadUdpListener();
+    cp->skt_ = skt_->copy();
+    cp->entry_ = entry_;
+    return cp;
 }
 
 SrsRecvTunnels::SrsRecvTunnels()
@@ -1880,11 +1895,15 @@ srs_error_t SrsAsyncRecvManager::do_start()
     // TODO: FIXME: Config it?
     srs_utime_t interval = 10 * SRS_UTIME_MILLISECONDS;
 
+    // We must deep copy listeners if changed.
+    vector<SrsThreadUdpListener*> listeners;
+
     while (true) {
-        vector<SrsThreadUdpListener*> listeners;
         if (true) {
             SrsThreadLocker(lock_);
-            listeners = listeners_;
+            if (listeners.size() != listeners_.size()) {
+                deep_copy_listeners(listeners);
+            }
         }
 
         bool got_packets = false;
@@ -1934,6 +1953,22 @@ srs_error_t SrsAsyncRecvManager::do_start()
     }
 
     return err;
+}
+
+void SrsAsyncRecvManager::deep_copy_listeners(vector<SrsThreadUdpListener*>& cp)
+{
+    // Free it first.
+    for (int i = 0; i < (int)cp.size(); i++) {
+        SrsThreadUdpListener* p = cp.at(i);
+        srs_freep(p);
+    }
+    cp.clear();
+
+    // Deep copy all listeners.
+    for (int i = 0; i < (int)listeners_.size(); i++) {
+        SrsThreadUdpListener* p = listeners_.at(i);
+        cp.push_back(p->copy());
+    }
 }
 
 srs_error_t SrsAsyncRecvManager::consume(SrsThreadEntry* entry, int* nn_consumed)

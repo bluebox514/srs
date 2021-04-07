@@ -499,18 +499,27 @@ srs_error_t run_in_thread_pool()
     }
 
     // Start the async SRTP worker thread, to encrypt/decrypt SRTP packets.
-    if ((err = _srs_thread_pool->execute("srtp", SrsAsyncSRTPManager::start, _srs_async_srtp)) != srs_success) {
-        return srs_error_wrap(err, "start async srtp thread");
+    int srtps = _srs_config->get_threads_async_srtp();
+    for (int i = 0; i < srtps; i++) {
+        if ((err = _srs_thread_pool->execute("srtp", SrsAsyncSRTPManager::start, _srs_async_srtp)) != srs_success) {
+            return srs_error_wrap(err, "start async srtp thread");
+        }
     }
 
     // Start the async RECV worker thread, to recv UDP packets.
-    if ((err = _srs_thread_pool->execute("recv", SrsAsyncRecvManager::start, _srs_async_recv)) != srs_success) {
-        return srs_error_wrap(err, "start async recv thread");
+    int recvs = _srs_config->get_threads_async_recv();
+    for (int i = 0; i < recvs; i++) {
+        if ((err = _srs_thread_pool->execute("recv", SrsAsyncRecvManager::start, _srs_async_recv)) != srs_success) {
+            return srs_error_wrap(err, "start async recv thread");
+        }
     }
 
     // Start the async SEND worker thread, to send UDP packets.
-    if ((err = _srs_thread_pool->execute("send", SrsAsyncSendManager::start, _srs_async_send)) != srs_success) {
-        return srs_error_wrap(err, "start async send thread");
+    int sends = _srs_config->get_threads_async_send();
+    for (int i = 0; i < recvs; i++) {
+        if ((err = _srs_thread_pool->execute("send", SrsAsyncSendManager::start, _srs_async_send)) != srs_success) {
+            return srs_error_wrap(err, "start async send thread");
+        }
     }
 
     // Start the api server thread, for server stat and RTC api, etc.
@@ -527,6 +536,8 @@ srs_error_t run_in_thread_pool()
             return srs_error_wrap(err, "start hybrid server %d thread", stream_index);
         }
     }
+
+    srs_trace("Pool: Start threads hybrids=%d, srtp=%d, recv=%d, send=%d", hybrids, srtps, recvs, sends);
 
     return _srs_thread_pool->run();
 }

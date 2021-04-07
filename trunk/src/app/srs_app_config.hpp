@@ -476,9 +476,9 @@ public:
 // Thread pool section.
 public:
     virtual srs_utime_t get_threads_interval();
-    virtual bool get_threads_async_srtp();
-    virtual bool get_threads_async_recv();
-    virtual bool get_threads_async_send();
+    virtual int get_threads_async_srtp();
+    virtual int get_threads_async_recv();
+    virtual int get_threads_async_send();
     virtual bool get_threads_async_tunnel();
     virtual int get_threads_hybrids();
     virtual bool get_threads_cpu_affinity(std::string label, int* start, int* end);
